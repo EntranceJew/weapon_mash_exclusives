@@ -3,7 +3,7 @@ AddCSLuaFile()
 if CLIENT then
     SWEP.PrintName = "Suicide Bomb"
     SWEP.Slot = 6
-    SWEP.Icon = "vgui/ttt/icon_c4"
+    SWEP.Icon = "vgui/ttt/icon_weapon_ttt_suicidebomb"
     SWEP.IconLetter = "I"
 end
 
@@ -27,23 +27,34 @@ SWEP.idleResetFix = true
 SWEP.Kind = WEAPON_EQUIP1
 SWEP.AutoSpawnable = false
 SWEP.AmmoEnt = "none"
-SWEP.CanBuy = {ROLE_TRAITOR}
-SWEP.InLoadoutFor = {nil}
+SWEP.CanBuy = { ROLE_TRAITOR }
+SWEP.InLoadoutFor = { nil }
 SWEP.LimitedStock = true
 SWEP.AllowDrop = true
 SWEP.IsSilent = false
 SWEP.NoSights = true
+SWEP.FlukeChance = 0.03
 
-function SWEP:Precache()
-    util.PrecacheSound("siege/big_explosion.wav")
-    util.PrecacheSound("siege/suicide.wav")
+function SWEP:SetupDataTables()
+    self:NetworkVar("Bool", 0, "Fluke")
 end
 
-function SWEP:Reload()
+
+function SWEP:Precache()
+    util.PrecacheSound("weapons/weapon_ttt_suicide/boom.wav")
+    util.PrecacheSound("weapons/weapon_ttt_suicide/bouta_blow.wav")
+end
+
+function SWEP:Reload() end
+
+function SWEP:Initialize()
+    if SERVER then
+        self:SetFluke(false)
+    end
 end
 
 function SWEP:PrimaryAttack()
-    self:SetNextPrimaryFire(CurTime() + 2)
+    self:SetNextPrimaryFire(CurTime() + 1.72)
 
     local effectdata = EffectData()
     effectdata:SetOrigin(self:GetOwner():GetPos())
@@ -53,29 +64,36 @@ function SWEP:PrimaryAttack()
     effectdata:SetRadius(78)
     util.Effect("Sparks", effectdata)
     self.BaseClass.ShootEffects(self)
+    if SERVER then
+        self:SetFluke(math.random() < self.FlukeChance)
+    end
 
-    if (SERVER) then
-        timer.Simple(2, function() self:Explode() end)
-        self:GetOwner():EmitSound("siege/suicide.wav")
+    if SERVER then
+        timer.Simple(1.72, function()
+            self:Explode()
+        end)
+        self:GetOwner():EmitSound("weapons/weapon_ttt_suicide/bouta_blow" .. (self:GetFluke() and "2" or "") .. ".wav")
     end
 end
 
 function SWEP:Explode()
-    local k, v
-
+    if not IsValid(self:GetOwner()) then
+        self:Remove()
+        return
+    end
     local ent = ents.Create("env_explosion")
     ent:SetPos(self:GetOwner():GetPos())
     ent:SetOwner(self:GetOwner())
     ent:SetKeyValue("iMagnitude", "200")
     ent:Spawn()
     ent:Fire("Explode", 0, 0)
-    ent:EmitSound("siege/big_explosion.wav", 140)
+    ent:EmitSound("weapons/weapon_ttt_suicide/boom" .. (self:GetFluke() and "2" or "") .. ".wav")
     self:Remove()
 end
 
 if CLIENT then
     SWEP.EquipMenuData = {
         type = "Weapon",
-        desc = "Go out in a screaming frenzy!\n\nKills user and surrounding terrorists."
+        desc = "Blow away all your friends!\n\nBlows the user and surrounding terrorists.",
     }
 end
